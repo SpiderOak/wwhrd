@@ -22,8 +22,9 @@ type List struct {
 }
 
 type Check struct {
-	File    string `short:"f" long:"file" description:"input file" default:".wwhrd.yml"`
-	NoColor bool   `long:"no-color" description:"disable colored output"`
+	File      string `short:"f" long:"file" description:"input file" default:".wwhrd.yml"`
+	ReportOut string `short:"r" long:"report-out" description:"report of all licenses found" default:""`
+	NoColor   bool   `long:"no-color" description:"disable colored output"`
 }
 
 const VersionHelp flags.ErrorType = 1961
@@ -90,6 +91,16 @@ func (l *List) Execute(args []string) error {
 	return nil
 }
 
+const licenseReportHeader = `THE FOLLOWING SETS FORTH ATTRIBUTION NOTICES FOR THIRD PARTY SOFTWARE THAT MAY BE CONTAINED IN PORTIONS OF THE FLOW PROJECT`
+const licenseReportTemplate = `
+
+---
+
+The following software may be included in this product: %s. This software contains the following license and notice below:
+
+%s
+`
+
 func (c *Check) Execute(args []string) error {
 
 	if c.NoColor {
@@ -138,8 +149,31 @@ func (c *Check) Execute(args []string) error {
 		}
 	}
 
+	var report *os.File
+
+	if c.ReportOut != "" {
+		report, err = os.Create(c.ReportOut)
+		if err != nil {
+			return err
+		}
+		defer report.Close()
+
+		_, err = report.WriteString(licenseReportHeader)
+		if err != nil {
+			return err
+		}
+	}
+
 PackageList:
 	for pkg, lic := range lics {
+
+		if report != nil {
+			_, err = report.WriteString(fmt.Sprintf(licenseReportTemplate, pkg, lic.Text))
+			if err != nil {
+				return err
+			}
+		}
+
 		contextLogger := log.WithFields(log.Fields{
 			"package": pkg,
 			"license": lic.Type,
